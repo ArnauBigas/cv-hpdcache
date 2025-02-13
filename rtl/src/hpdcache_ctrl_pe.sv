@@ -92,6 +92,7 @@ module hpdcache_ctrl_pe
     input  logic                   st1_mshr_alloc_ready_i,
     input  logic                   st1_mshr_hit_i,
     input  logic                   st1_mshr_full_i,
+    input  logic                   st1_uc_not_ready,
     //   }}}
 
     //   Pipeline stage 2
@@ -136,6 +137,7 @@ module hpdcache_ctrl_pe
     output logic                   st1_rtab_dir_fetch_o,
     output logic                   st1_rtab_flush_hit_o,
     output logic                   st1_rtab_flush_not_ready_o,
+    output logic                   st1_rtab_uc_not_ready_o,
     //   }}}
 
     //   Cache directory
@@ -471,7 +473,7 @@ module hpdcache_ctrl_pe
                     uc_req_valid_o = 1'b1;
 
                     //  Uncacheable handler is not ready
-                    if (!st1_uc_not_ready) begin
+                    if (st1_uc_not_ready) begin
                         st1_rtab_alloc = 1'b1;
                         st1_rtab_uc_not_ready_o = 1'b1;
                         st1_nop = 1'b1;
@@ -510,7 +512,7 @@ module hpdcache_ctrl_pe
                             uc_req_valid_o = 1'b1;
 
                             //  Uncacheable handler is not ready
-                            if (!st1_uc_not_ready) begin
+                            if (st1_uc_not_ready) begin
                                 st1_rtab_alloc = 1'b1;
                                 st1_rtab_uc_not_ready_o = 1'b1;
                                 st1_nop = 1'b1;

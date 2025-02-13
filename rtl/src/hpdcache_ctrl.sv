@@ -159,6 +159,7 @@ import hpdcache_pkg::*;
 
     //      Uncacheable request handler
     input  logic                  uc_busy_i,
+    input  logic                  uc_ready_i,
     output logic                  uc_lrsc_snoop_o,
     output hpdcache_req_addr_t    uc_lrsc_snoop_addr_o,
     output hpdcache_req_size_t    uc_lrsc_snoop_size_o,
@@ -614,6 +615,7 @@ import hpdcache_pkg::*;
         .st1_req_cachedir_updt_sel_victim_o (st1_req_updt_sel_victim),
         .st1_req_cachedata_write_o          (st1_req_cachedata_write),
         .st1_req_cachedata_write_enable_o   (st1_req_cachedata_write_enable),
+        .st1_uc_not_ready                   (~uc_ready_i),
 
         .st2_mshr_alloc_i                   (st2_mshr_alloc_q),
         .st2_mshr_alloc_is_prefetch_i       (st2_mshr_alloc_is_prefetch_q),
@@ -658,6 +660,7 @@ import hpdcache_pkg::*;
         .st1_rtab_dir_fetch_o               (st1_rtab_deps.dir_fetch),
         .st1_rtab_flush_hit_o               (st1_rtab_deps.flush_hit),
         .st1_rtab_flush_not_ready_o         (st1_rtab_deps.flush_not_ready),
+        .st1_rtab_uc_not_ready_o            (st1_rtab_deps.uc_not_ready),
 
         .cachedir_hit_i                     (cachedir_hit_o),
         .cachedir_init_ready_i              (hpdcache_init_ready),
@@ -781,6 +784,8 @@ import hpdcache_pkg::*;
         .flush_ack_i                        (flush_ack_i),
         .flush_ack_nline_i                  (flush_ack_nline_i),
         .flush_ready_i                      (flush_alloc_ready_i),
+
+        .uc_ready_i,
 
         .cfg_single_entry_i                 (cfg_rtab_single_entry_i)
     );

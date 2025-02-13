@@ -232,8 +232,9 @@ import hpdcache_pkg::*;
     hpdcache_nline_t       inval_nline;
     logic                  inval_hit              [nBanks];
 
-    logic                  uc_ready;
+    logic                  uc_busy;
     logic                  uc_req_valid                [nBanks];
+    logic [nBanks-1:0]     uc_ready;
     hpdcache_uc_op_t       uc_req_op                   [nBanks];
     hpdcache_req_addr_t    uc_req_addr                 [nBanks];
     hpdcache_req_size_t    uc_req_size                 [nBanks];
@@ -577,7 +578,8 @@ import hpdcache_pkg::*;
             .mem_resp_write_wbuf_valid_i        (mem_resp_write_wbuf_valid[gen_bank]),
             .mem_resp_write_wbuf_i              (mem_resp_write_wbuf[gen_bank]),
 
-            .uc_busy_i                          (~uc_ready),
+            .uc_busy_i                          (uc_busy),
+            .uc_ready_i                         (uc_ready[gen_bank]),
             .uc_lrsc_snoop_o                    (uc_lrsc_snoop[gen_bank]),
             .uc_lrsc_snoop_addr_o               (uc_lrsc_snoop_addr[gen_bank]),
             .uc_lrsc_snoop_size_o               (uc_lrsc_snoop_size[gen_bank]),
@@ -760,6 +762,7 @@ import hpdcache_pkg::*;
         .rtab_empty_i                  (rtab_empty),
         .ctrl_empty_i                  (ctrl_empty),
         .flush_empty_i                 (flush_empty),
+        .uc_busy_o                     (uc_busy),
 
         .req_valid_i                   (uc_req_valid),
         .req_ready_o                   (uc_ready),

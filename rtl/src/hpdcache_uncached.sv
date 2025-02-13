@@ -73,12 +73,13 @@ import hpdcache_pkg::*;
     input  logic                  rtab_empty_i,
     input  logic                  ctrl_empty_i,
     input  logic                  flush_empty_i,
+    output logic                  uc_busy_o,
     //  }}}
 
     //  Cache-side request interface
     //  {{{
     input  logic                  req_valid_i    [nBanks],
-    output logic                  req_ready_o,
+    output logic [nBanks-1:0]     req_ready_o,
     input  hpdcache_uc_op_t       req_op_i       [nBanks],
     input  hpdcache_req_addr_t    req_addr_i     [nBanks],
     input  hpdcache_req_size_t    req_size_i     [nBanks],
@@ -362,7 +363,8 @@ import hpdcache_pkg::*;
     endgenerate
 
     assign arb_ready = uc_fsm_q == UC_IDLE;
-    assign req_ready_o = arb_ready;
+    assign uc_busy_o = uc_fsm_q != UC_IDLE | arb_valid;
+    assign req_ready_o = arb_req_gnt & {{nBanks}{arb_ready}};
     assign arb_valid = |arb_req_gnt;
 
     hpdcache_fxarb #(.N(nBanks)) req_arbiter_i(
