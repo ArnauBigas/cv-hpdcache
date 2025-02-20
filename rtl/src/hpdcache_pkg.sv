@@ -453,6 +453,8 @@ package hpdcache_pkg;
         bit wtEn;
         //  Enable support for the write-back policy
         bit wbEn;
+        //  Enable high-throughput mode. Adds an extra latency cycle to responses
+        bit highThroughputEn;
     } hpdcache_user_cfg_t;
 
     typedef struct packed {
