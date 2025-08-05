@@ -34,8 +34,8 @@ class hpdcache_test_single_addr_seq : public hpdcache_test_sequence
 {
 public:
 
-    hpdcache_test_single_addr_seq(sc_core::sc_module_name nm)
-        : hpdcache_test_sequence(nm, "single_addr_seq")
+    hpdcache_test_single_addr_seq(sc_core::sc_module_name nm, unsigned int source_id)
+        : hpdcache_test_sequence(nm, "single_addr_seq", source_id)
     {
         SC_THREAD(run);
         sensitive << clk_i.pos();
@@ -147,7 +147,7 @@ private:
         }
 
         t->req_wdata        = create_random_data();
-        t->req_sid          = 0;
+        t->req_sid          = source_id;
         t->req_tid          = allocate_id();
         t->req_abort        = false;
         t->req_phys_indexed = false;
@@ -206,7 +206,7 @@ private:
         t = acquire_transaction<hpdcache_test_transaction_req>();
         t->req_op          = hpdcache_test_transaction_req::HPDCACHE_REQ_AMO_SC;
         t->req_wdata       = create_random_data();
-        t->req_sid         = 0;
+        t->req_sid         = source_id;
         t->req_tid         = allocate_id();
         t->req_addr        = address;
         t->req_be          = ((1UL << bytes) - 1) << offset;

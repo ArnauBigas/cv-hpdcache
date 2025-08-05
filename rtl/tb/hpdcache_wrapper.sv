@@ -100,6 +100,7 @@ import hpdcache_pkg::*;
     localparam type hpdcache_mem_data_t = logic [Cfg.u.memDataWidth-1:0],
     localparam type hpdcache_mem_be_t   = logic [Cfg.u.memDataWidth/8-1:0],
 
+    localparam int unsigned NREQUESTERS = Cfg.u.nRequesters,
     localparam int  nBanks              = Cfg.u.nBanks
 )
     //  }}}
@@ -116,17 +117,17 @@ import hpdcache_pkg::*;
 
     //      Core request interface
     //         1st cycle
-    input  logic                               core_req_valid_i,
-    output logic                               core_req_ready_o,
-    input  hpdcache_req_t                      core_req_i,
+    input  logic                               core_req_valid_i [NREQUESTERS],
+    output logic                               core_req_ready_o [NREQUESTERS],
+    input  hpdcache_req_t                      core_req_i       [NREQUESTERS],
     //         2nd cycle
-    input  logic                               core_req_abort_i,
-    input  hpdcache_tag_t                      core_req_tag_i,
-    input  hpdcache_pma_t                      core_req_pma_i,
+    input  logic                               core_req_abort_i [NREQUESTERS],
+    input  hpdcache_tag_t                      core_req_tag_i   [NREQUESTERS],
+    input  hpdcache_pma_t                      core_req_pma_i   [NREQUESTERS],
 
     //      Core response interface
-    output var  logic                          core_rsp_valid_o,
-    output var  hpdcache_rsp_t                 core_rsp_o,
+    output logic                               core_rsp_valid_o [NREQUESTERS],
+    output hpdcache_rsp_t                      core_rsp_o       [NREQUESTERS],
 
     //      Memory read interface
     input  wire logic                          mem_req_read_ready_i,
@@ -208,19 +209,6 @@ import hpdcache_pkg::*;
 
     //  Declaration of internal signals
     //  {{{
-    localparam int unsigned NREQUESTERS = Cfg.u.nRequesters;
-
-    logic                  core_req_valid [NREQUESTERS];
-    logic                  core_req_ready [NREQUESTERS];
-    hpdcache_req_t         core_req       [NREQUESTERS];
-    logic                  core_req_abort [NREQUESTERS];
-    hpdcache_tag_t         core_req_tag   [NREQUESTERS];
-    hpdcache_pma_t         core_req_pma   [NREQUESTERS];
-
-    //      Core response interface
-    logic                  core_rsp_valid [NREQUESTERS];
-    hpdcache_rsp_t         core_rsp       [NREQUESTERS];
-
     hpdcache_mem_req_t     mem_req_read;
     hpdcache_mem_resp_r_t  mem_resp_read;
     hpdcache_mem_req_t     mem_req_write;
@@ -262,31 +250,6 @@ import hpdcache_pkg::*;
            mem_resp_write.mem_resp_w_id        = mem_resp_write_id_i;
     //  }}}
 
-    always_comb
-    begin : core_req_routing_comb
-        core_req_ready_o = core_req_valid_i && core_req_ready[core_req_i.sid];
-        for (int i = 0; i < NREQUESTERS; i++) begin
-            core_req_valid [i] = core_req_valid_i && (core_req_i.sid == hpdcache_req_sid_t'(i));
-            core_req       [i] = core_req_i;
-            core_req_abort [i] = core_req_abort_i;
-            core_req_tag   [i] = core_req_tag_i;
-            core_req_pma   [i] = core_req_pma_i;
-        end
-    end
-
-    always_comb
-    begin : core_rsp_routing_comb
-        core_rsp_valid_o = '0;
-        core_rsp_o       = '0;
-        for (int i = 0; i < NREQUESTERS; i++) begin
-            if (core_rsp_valid[i]) begin
-                core_rsp_valid_o = 1'b1;
-                core_rsp_o       = core_rsp[i];
-                break;
-            end
-        end
-    end
-
     assign wbuf_empty_o = &wbuf_empty;
 
     hpdcache #(
@@ -316,15 +279,15 @@ import hpdcache_pkg::*;
 
         .wbuf_flush_i,
 
-        .core_req_valid_i                  (core_req_valid),
-        .core_req_ready_o                  (core_req_ready),
-        .core_req_i                        (core_req),
-        .core_req_abort_i                  (core_req_abort),
-        .core_req_tag_i                    (core_req_tag),
-        .core_req_pma_i                    (core_req_pma),
+        .core_req_valid_i                  (core_req_valid_i),
+        .core_req_ready_o                  (core_req_ready_o),
+        .core_req_i                        (core_req_i),
+        .core_req_abort_i                  (core_req_abort_i),
+        .core_req_tag_i                    (core_req_tag_i),
+        .core_req_pma_i                    (core_req_pma_i),
 
-        .core_rsp_valid_o                  (core_rsp_valid),
-        .core_rsp_o                        (core_rsp),
+        .core_rsp_valid_o                  (core_rsp_valid_o),
+        .core_rsp_o                        (core_rsp_o),
 
         .mem_req_read_ready_i              (mem_req_read_ready_i),
         .mem_req_read_valid_o              (mem_req_read_valid_o),

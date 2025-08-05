@@ -38,7 +38,7 @@ class hpdcache_test_sequence : public Sequence
 
 public:
 
-    hpdcache_test_sequence(sc_core::sc_module_name nm, std::string seq_name) :
+    hpdcache_test_sequence(sc_core::sc_module_name nm, std::string seq_name, unsigned int source_id) :
           Sequence                  (nm)
         , name                      (seq_name)
         , max_transactions          (100)
@@ -56,6 +56,7 @@ public:
         , op_amo_distribution       ("op_amo_distribution")
         , wr_policy                 ("wr_policy")
         , wr_policy_distribution    ("wr_policy_distribution")
+        , source_id                 (source_id)
     {
         std::cout << "Building " << nm << std::endl;
     }
@@ -260,6 +261,7 @@ protected:
     scv_bag<int>            op_amo_distribution;
     scv_smart_ptr<int>      wr_policy;
     scv_bag<int>            wr_policy_distribution;
+    unsigned int            source_id;
 
     std::shared_ptr<hpdcache_test_mem_resp_model_base> mem_resp_model;
 };

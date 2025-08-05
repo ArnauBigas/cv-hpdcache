@@ -59,7 +59,7 @@ public:
 private:
     std::string covname;
     std::shared_ptr<VerilatedVcdSc> tf;
-    std::shared_ptr<hpdcache_test_sequence> seq;
+    std::shared_ptr<hpdcache_test_sequence> seq[NREQUESTERS];
 
 public:
     hpdcache_test() :
@@ -67,10 +67,12 @@ public:
         max_trans(100),
         covname(""),
         tf(nullptr),
-        seq(nullptr)
+        seq{nullptr}
     {
         top = std::make_shared<Vhpdcache_wrapper> ("i_top");
-        hpdcache_test_agent_i = std::make_shared<hpdcache_test_agent> ("i_agent");
+        for (unsigned int i = 0; i < NREQUESTERS; i++) {
+            hpdcache_test_agent_i[i] = std::make_shared<hpdcache_test_agent> (("i_agent_" + std::to_string(i)).c_str());
+        }
         hpdcache_test_mem_resp_model_i = std::make_shared<hpdcache_test_mem_resp_model> ("i_mem");
         hpdcache_test_scoreboard_i = std::make_shared<hpdcache_test_scoreboard> ("i_scoreboard");
     }
@@ -82,14 +84,16 @@ public:
         top->clk_i (clk_i);
         top->rst_ni (rst_ni);
         top->wbuf_flush_i (wbuf_flush);
-        top->core_req_valid_i (core_req_valid);
-        top->core_req_ready_o (core_req_ready);
-        top->core_req_i (core_req);
-        top->core_req_abort_i (core_req_abort);
-        top->core_req_tag_i (core_req_tag);
-        top->core_req_pma_i (core_req_pma);
-        top->core_rsp_valid_o (core_rsp_valid);
-        top->core_rsp_o (core_rsp);
+        for (unsigned int i = 0; i < NREQUESTERS; i++) {
+            top->core_req_valid_i[i] (core_req_valid[i]);
+            top->core_req_ready_o[i] (core_req_ready[i]);
+            top->core_req_i[i] (core_req[i]);
+            top->core_req_abort_i[i] (core_req_abort[i]);
+            top->core_req_tag_i[i] (core_req_tag[i]);
+            top->core_req_pma_i[i] (core_req_pma[i]);
+            top->core_rsp_valid_o[i] (core_rsp_valid[i]);
+            top->core_rsp_o[i] (core_rsp[i]);
+        }
         top->mem_req_read_ready_i (mem_req_read_ready);
         top->mem_req_read_valid_o (mem_req_read_valid);
         top->mem_req_read_addr_o (mem_req_read_addr);
@@ -146,18 +150,20 @@ public:
         top->cfg_rtab_single_entry_i (cfg_rtab_single_entry);
         top->cfg_default_wb_i (cfg_default_wb);
 
-        hpdcache_test_agent_i->clk_i (clk_i);
-        hpdcache_test_agent_i->rst_ni (rst_ni);
-        hpdcache_test_agent_i->core_req_valid_o (core_req_valid);
-        hpdcache_test_agent_i->core_req_ready_i (core_req_ready);
-        hpdcache_test_agent_i->core_req_o (core_req);
-        hpdcache_test_agent_i->core_req_tag_o (core_req_tag);
-        hpdcache_test_agent_i->core_req_pma_o (core_req_pma);
-        hpdcache_test_agent_i->core_req_abort_o (core_req_abort);
-        hpdcache_test_agent_i->core_rsp_valid_i (core_rsp_valid);
-        hpdcache_test_agent_i->core_rsp_i (core_rsp);
-        hpdcache_test_agent_i->sb_core_req_o (sb_core_req);
-        hpdcache_test_agent_i->sb_core_resp_o (sb_core_resp);
+        for (unsigned int i = 0; i < NREQUESTERS; i++) {
+            hpdcache_test_agent_i[i]->clk_i (clk_i);
+            hpdcache_test_agent_i[i]->rst_ni (rst_ni);
+            hpdcache_test_agent_i[i]->core_req_valid_o (core_req_valid[i]);
+            hpdcache_test_agent_i[i]->core_req_ready_i (core_req_ready[i]);
+            hpdcache_test_agent_i[i]->core_req_o (core_req[i]);
+            hpdcache_test_agent_i[i]->core_req_tag_o (core_req_tag[i]);
+            hpdcache_test_agent_i[i]->core_req_pma_o (core_req_pma[i]);
+            hpdcache_test_agent_i[i]->core_req_abort_o (core_req_abort[i]);
+            hpdcache_test_agent_i[i]->core_rsp_valid_i (core_rsp_valid[i]);
+            hpdcache_test_agent_i[i]->core_rsp_i (core_rsp[i]);
+            hpdcache_test_agent_i[i]->sb_core_req_o (sb_core_req[i]);
+            hpdcache_test_agent_i[i]->sb_core_resp_o (sb_core_resp[i]);
+        }
 
         hpdcache_test_mem_resp_model_i->clk_i (clk_i);
         hpdcache_test_mem_resp_model_i->rst_ni (rst_ni);
@@ -201,8 +207,6 @@ public:
         hpdcache_test_mem_resp_model_i->sb_mem_write_resp_o (sb_mem_write_resp);
 
         hpdcache_test_scoreboard_i->clk_i (clk_i);
-        hpdcache_test_scoreboard_i->core_req_i (sb_core_req);
-        hpdcache_test_scoreboard_i->core_resp_i (sb_core_resp);
         hpdcache_test_scoreboard_i->mem_read_req_i (sb_mem_read_req);
         hpdcache_test_scoreboard_i->mem_read_resp_i (sb_mem_read_resp);
         hpdcache_test_scoreboard_i->mem_write_req_i (sb_mem_write_req);
@@ -219,10 +223,14 @@ public:
         hpdcache_test_scoreboard_i->evt_stall_refill_i (evt_stall_refill);
         hpdcache_test_scoreboard_i->evt_stall_i (evt_stall);
 
-        seq->set_max_transactions(this->max_trans);
-        seq->set_mem_resp_model(hpdcache_test_mem_resp_model_i);
-        hpdcache_test_agent_i->add_sequence(seq);
-        hpdcache_test_scoreboard_i->set_sequence(seq);
+        for (unsigned int requester = 0; requester < NREQUESTERS; requester++) {
+            seq[requester]->set_max_transactions(this->max_trans / NREQUESTERS);
+            seq[requester]->set_mem_resp_model(hpdcache_test_mem_resp_model_i);
+            hpdcache_test_agent_i[requester]->add_sequence(seq[requester]);
+            hpdcache_test_scoreboard_i->set_sequence(requester, seq[requester]);
+            hpdcache_test_scoreboard_i->core_req_i[requester] (sb_core_req[requester]);
+            hpdcache_test_scoreboard_i->core_resp_i[requester] (sb_core_resp[requester]);
+        }
         hpdcache_test_scoreboard_i->set_mem_resp_model(hpdcache_test_mem_resp_model_i);
     }
 
@@ -232,7 +240,9 @@ public:
         uint64_t cycles;
 
         std::cout << "Starting the simulation..." << std::endl;
-        std::cout << *seq << std::endl;
+        for (unsigned int i = 0; i < NREQUESTERS; i++) {
+            std::cout << *(seq[i]) << std::endl;
+        }
 
         cycles = 0;
         start = std::chrono::system_clock::now();
@@ -290,22 +300,24 @@ public:
 
     void set_sequence(std::string seq_name)
     {
-        if (seq != nullptr) {
-            std::cout << "error: only one sequence supported" << std::endl;
-            exit(EXIT_FAILURE);
-        }
+        for (unsigned int i = 0; i < NREQUESTERS; i++) {
+            if (seq[i] != nullptr) {
+                std::cout << "error: only one sequence supported" << std::endl;
+                exit(EXIT_FAILURE);
+            }
 
-        if (seq_name == "random") {
-            seq = std::make_shared<hpdcache_test_random_seq>("random");
-        } else if (seq_name == "read") {
-            seq = std::make_shared<hpdcache_test_read_seq>("read");
-        } else if (seq_name == "write") {
-            seq = std::make_shared<hpdcache_test_write_seq>("write");
-        } else if (seq_name == "single_addr") {
-            seq = std::make_shared<hpdcache_test_single_addr_seq>("single_addr");
-        } else {
-            std::cout << "error: sequence " << seq_name << " not found" << std::endl;
-            exit(EXIT_FAILURE);
+            if (seq_name == "random") {
+                seq[i] = std::make_shared<hpdcache_test_random_seq>(("random_" + std::to_string(i)).c_str(), i);
+            } else if (seq_name == "read") {
+                seq[i] = std::make_shared<hpdcache_test_read_seq>(("read_" + std::to_string(i)).c_str(), i);
+            } else if (seq_name == "write") {
+                seq[i] = std::make_shared<hpdcache_test_write_seq>(("write_" + std::to_string(i)).c_str(), i);
+            } else if (seq_name == "single_addr") {
+                seq[i] = std::make_shared<hpdcache_test_single_addr_seq>(("single_addr_" + std::to_string(i)).c_str(), i);
+            } else {
+                std::cout << "error: sequence " << seq_name << " not found" << std::endl;
+                exit(EXIT_FAILURE);
+            }
         }
     }
 
@@ -343,21 +355,21 @@ private:
 
 
     std::shared_ptr<Vhpdcache_wrapper> top;
-    std::shared_ptr<hpdcache_test_agent> hpdcache_test_agent_i;
+    std::shared_ptr<hpdcache_test_agent> hpdcache_test_agent_i[NREQUESTERS];
     std::shared_ptr<hpdcache_test_mem_resp_model> hpdcache_test_mem_resp_model_i;
     std::shared_ptr<hpdcache_test_scoreboard> hpdcache_test_scoreboard_i;
 
     sc_core::sc_signal <bool> clk_i;
     sc_core::sc_signal <bool> rst_ni;
     sc_core::sc_signal <bool> wbuf_flush;
-    sc_core::sc_signal <bool> core_req_valid;
-    sc_core::sc_signal <bool> core_req_ready;
-    sc_core::sc_signal <sc_bv<HPDCACHE_CORE_REQ_WIDTH> > core_req;
-    sc_core::sc_signal <bool> core_req_abort;
-    sc_core::sc_signal <uint64_t> core_req_tag;
-    sc_core::sc_signal <uint32_t> core_req_pma;
-    sc_core::sc_signal <bool> core_rsp_valid;
-    sc_core::sc_signal <sc_bv<HPDCACHE_CORE_RSP_WIDTH> > core_rsp;
+    sc_core::sc_signal <bool> core_req_valid[NREQUESTERS];
+    sc_core::sc_signal <bool> core_req_ready[NREQUESTERS];
+    sc_core::sc_signal <sc_bv<HPDCACHE_CORE_REQ_WIDTH>> core_req[NREQUESTERS];
+    sc_core::sc_signal <bool> core_req_abort[NREQUESTERS];
+    sc_core::sc_signal <uint64_t> core_req_tag[NREQUESTERS];
+    sc_core::sc_signal <uint32_t> core_req_pma[NREQUESTERS];
+    sc_core::sc_signal <bool> core_rsp_valid[NREQUESTERS];
+    sc_core::sc_signal <sc_bv<HPDCACHE_CORE_RSP_WIDTH>> core_rsp[NREQUESTERS];
 
     sc_core::sc_signal <bool> mem_req_read_ready;
     sc_core::sc_signal <bool> mem_req_read_valid;
@@ -394,8 +406,8 @@ private:
     sc_core::sc_signal <uint32_t> mem_resp_write_error;
     sc_core::sc_signal <uint32_t> mem_resp_write_id;
 
-    sc_core::sc_fifo<hpdcache_test_transaction_req> sb_core_req;
-    sc_core::sc_fifo<hpdcache_test_transaction_resp> sb_core_resp;
+    sc_core::sc_fifo<hpdcache_test_transaction_req> sb_core_req[NREQUESTERS];
+    sc_core::sc_fifo<hpdcache_test_transaction_resp> sb_core_resp[NREQUESTERS];
     sc_core::sc_fifo<hpdcache_test_transaction_mem_read_req> sb_mem_read_req;
     sc_core::sc_fifo<hpdcache_test_transaction_mem_read_resp> sb_mem_read_resp;
     sc_core::sc_fifo<hpdcache_test_transaction_mem_write_req> sb_mem_write_req;

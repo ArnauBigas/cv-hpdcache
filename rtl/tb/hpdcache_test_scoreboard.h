@@ -56,8 +56,8 @@ public:
 
     sc_in<bool>                                          clk_i;
 
-    sc_fifo_in<hpdcache_test_transaction_req>            core_req_i;
-    sc_fifo_in<hpdcache_test_transaction_resp>           core_resp_i;
+    sc_fifo_in<hpdcache_test_transaction_req>            core_req_i[NREQUESTERS];
+    sc_fifo_in<hpdcache_test_transaction_resp>           core_resp_i[NREQUESTERS];
 
     sc_fifo_in<hpdcache_test_transaction_mem_read_req>   mem_read_req_i;
     sc_fifo_in<hpdcache_test_transaction_mem_read_resp>  mem_read_resp_i;
@@ -79,8 +79,6 @@ public:
 
     hpdcache_test_scoreboard(sc_core::sc_module_name nm) :
             sc_module(nm),
-            core_req_i("core_req_i"),
-            core_resp_i("core_resp_i"),
             mem_read_req_i("mem_read_req_i"),
             mem_read_resp_i("mem_read_resp_i"),
             mem_write_req_i("mem_write_req_i"),
@@ -106,7 +104,7 @@ public:
             evt_rtab_rollback(0),
             evt_stall_refill(0),
             evt_stall(0),
-            seq(nullptr),
+            seq{nullptr},
             mem_resp_model(nullptr),
             sc_is_atomic(false),
 #if ENABLE_CACHE_DIR_VERIF
@@ -115,8 +113,17 @@ public:
 #endif
             ram_m(std::make_shared<ram_t>("ram"))
     {
-        SC_THREAD(core_req_process);
-        SC_THREAD(core_resp_process);
+        // TODO: How are these initialized?
+        /*for (unsigned int requester = 0; requester < NREQUESTERS; requester++) {
+            core_req_i[requester] = sc_fifo_in<hpdcache_test_transaction_req>(("core_req_i" + std::to_string(requester)).c_str());
+            core_resp_i[requester] = sc_fifo_in<hpdcache_test_transaction_resp>(("core_resp_i" + std::to_string(requester)).c_str());
+        }*/
+
+        for (unsigned int requester = 0; requester < NREQUESTERS; requester++) {
+            sc_spawn(sc_bind(&hpdcache_test_scoreboard::core_req_process, this, requester));
+            sc_spawn(sc_bind(&hpdcache_test_scoreboard::core_resp_process, this, requester));
+        }
+        
         SC_THREAD(mem_read_req_process);
         SC_THREAD(mem_read_resp_process);
         SC_THREAD(mem_write_req_process);
@@ -150,13 +157,15 @@ public:
                << evt_read_req << ")";
             print_error(ss.str());
         }
-        if (seq->ids_size() > 0) {
-            ss.str("");
-            ss << "unresponded ids:";
-            for (auto it : seq->get_ids()) {
-                ss << " 0x" << std::hex << it << std::dec;
+        for (int requester = 0; requester < NREQUESTERS; requester++) {
+            if (seq[requester]->ids_size() > 0) {
+                ss.str("");
+                ss << "unresponded ids for requester " << requester << ":";
+                for (auto it : seq[requester]->get_ids()) {
+                    ss << " 0x" << std::hex << it << std::dec;
+                }
+                print_error(ss.str());
             }
-            print_error(ss.str());
         }
 
 
@@ -203,9 +212,10 @@ public:
         }
     }
 
-    void set_sequence(std::shared_ptr<hpdcache_test_sequence> p)
+    void set_sequence(int requester, std::shared_ptr<hpdcache_test_sequence> p)
     {
-        seq = p;
+        assert(requester < NREQUESTERS);
+        seq[requester] = p;
     }
 
     void set_mem_resp_model(std::shared_ptr<hpdcache_test_mem_resp_model_base> p)
@@ -239,7 +249,7 @@ private:
     uint64_t evt_stall_refill;
     uint64_t evt_stall;
 
-    std::shared_ptr<hpdcache_test_sequence> seq;
+    std::shared_ptr<hpdcache_test_sequence> seq[NREQUESTERS];
     std::shared_ptr<hpdcache_test_mem_resp_model_base> mem_resp_model;
 
     static constexpr unsigned int CORE_REQ_WORDS      = HPDCACHE_REQ_DATA_WIDTH/64;
@@ -315,6 +325,10 @@ private:
     typedef std::map  <uint64_t, inflight_mem_entry_t>      inflight_mem_map_t;
     typedef std::pair <uint32_t, inflight_mem_entry_t>      inflight_mem_map_pair_t;
     typedef ram_model <SCOREBOARD_RAM_SIZE>                 ram_t;
+
+    const inline uint32_t inflight_map_key(uint32_t sid, uint32_t tid) {
+        return (sid << HPDCACHE_REQ_TRANS_ID_WIDTH) | tid;
+    }
 
 #if ENABLE_CACHE_DIR_VERIF
     std::shared_ptr<GenericCacheDirectoryPlru> cache_dir_m;
@@ -438,11 +452,11 @@ private:
                   << " / SB_DEBUG: " << msg << std::endl;
     }
 
-    void core_req_process()
+    void core_req_process(unsigned int requester)
     {
         hpdcache_test_transaction_req req;
         for (;;) {
-            req = core_req_i.read();
+            req = core_req_i[requester].read();
             nb_core_req++;
 
             if (check_verbosity(sc_core::SC_MEDIUM)) {
@@ -452,14 +466,16 @@ private:
             //  count the number of requests that need a response
             if (req.req_need_rsp) nb_core_req_need_rsp++;
 
-            uint32_t req_id   = req.req_tid.to_uint();
+            uint32_t req_tid   = req.req_tid.to_uint();
+            uint32_t req_sid   = req.req_sid.to_uint();
             uint64_t req_addr = req.req_addr.to_uint64();
 
-            inflight_map_t::const_iterator it = inflight_m.find(req_id);
+            inflight_map_t::const_iterator it = inflight_m.find(inflight_map_key(req_sid, req_tid));
             if (it != inflight_m.end()) {
                 std::stringstream ss;
-                ss << "core request ID "
-                   << "0x" << std::hex << req_id << std::dec
+                ss << "core request"
+                   << " SID 0x" << std::hex << req_sid << std::dec
+                   << " TID 0x" << std::hex << req_tid << std::dec
                    << " matches an inflight request";
                 print_error(ss.str());
                 continue;
@@ -496,7 +512,7 @@ private:
                 }
 #endif
                 //  release response ID on the sequence
-                seq->deallocate_id(req_id);
+                seq[requester]->deallocate_id(req_tid);
                 continue;
             }
 
@@ -655,15 +671,15 @@ private:
             }
 
             //  add new core request into the table of inflight requests
-            inflight_m.insert(inflight_map_pair_t(req_id, e));
+            inflight_m.insert(inflight_map_pair_t(inflight_map_key(req_sid, req_tid), e));
         }
     }
 
-    void core_resp_process()
+    void core_resp_process(unsigned int requester)
     {
         hpdcache_test_transaction_resp resp;
         for (;;) {
-            resp = core_resp_i.read();
+            resp = core_resp_i[requester].read();
             nb_core_resp++;
 
             nb_cycles_effective = nb_cycles;
@@ -673,11 +689,12 @@ private:
             }
 
             //  check if there is a matching request for the received response
-            inflight_map_t::const_iterator it = inflight_m.find(resp.rsp_tid.to_uint());
+            inflight_map_t::const_iterator it = inflight_m.find(inflight_map_key(resp.rsp_sid.to_uint(), resp.rsp_tid.to_uint()));
             if (it == inflight_m.end()) {
                 std::stringstream ss;
-                ss << "core response ID "
-                   << "0x" << std::hex << resp.rsp_tid.to_uint() << std::dec
+                ss << "core response"
+                   << " SID 0x" << std::hex << resp.rsp_sid.to_uint() << std::dec
+                   << " TID 0x" << std::hex << resp.rsp_tid.to_uint() << std::dec
                    << " does not match any inflight request";
                 print_error(ss.str());
                 continue;
@@ -844,7 +861,7 @@ private:
             inflight_m.erase(it);
 
             //  release response ID on the sequence
-            seq->deallocate_id(resp.rsp_tid.to_uint());
+            seq[requester]->deallocate_id(resp.rsp_tid.to_uint());
         }
     }
 
